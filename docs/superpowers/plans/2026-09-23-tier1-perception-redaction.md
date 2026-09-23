@@ -416,9 +416,9 @@ export function verhoeffValid(digits) {
 Run: `node --test tests/verhoeff.test.js`
 Expected: PASS, 3 tests.
 
-If the first test fails, the literal in the test is not actually Verhoeff-valid. Generate a correct one rather than weakening the check:
-`node -e "const{verhoeffValid}=await import('./extension/src/lib/verhoeff.js');for(let i=0;i<10;i++){const c='23412341234'+i;if(verhoeffValid(c))console.log(c)}" --input-type=module`
-Use the number it prints, and update the demo page in Task 2 to match.
+`234123412346` was verified Verhoeff-valid on 2026-09-23, and `6` is the only last digit that satisfies `23412341234_`. It matches the value on the demo page in Task 2; keep the two in sync if either changes.
+
+If a future edit makes this test fail, fix the number, never the checksum. Dropping the Verhoeff gate would make the test pass and turn the detector into a plain twelve-digit matcher, which is the precision this task exists to buy.
 
 - [ ] **Step 5: Write the failing test for Luhn**
 
