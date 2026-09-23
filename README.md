@@ -27,8 +27,8 @@ npx --yes serve demo -l 5500      # the demo page over http
 Then load `extension/` unpacked at `chrome://extensions` with Developer mode on,
 open `http://localhost:5500`, and click the extension icon.
 
-One file is not in the repository and has to be supplied: a real photographic
-portrait at `demo/assets/face.jpg`. See `demo/assets/README.md` for why.
+The portrait at `demo/assets/face.jpg` is machine-generated and depicts nobody —
+see `demo/assets/README.md` before replacing it.
 
 ## How it works
 

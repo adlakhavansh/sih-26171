@@ -5,18 +5,26 @@ SVG, so they carry no binary files and no third party's likeness. All three are
 DOM-blind to the perception pipeline exactly as a PNG or JPEG would be: the browser
 rasterises them, and nothing inside them appears in the DOM.
 
-## One file you have to supply: `face.jpg`
+## `face.jpg`
 
-The face detector is trained on photographs. A drawn face does not reliably trigger
-it, so the demo needs one real photographic portrait in this directory, named
-`face.jpg`.
+The face detector is trained on photographs, and a drawn face does not reliably
+trigger it — so the demo needs one real photographic portrait here.
 
-Use an AI-generated portrait (thispersondoesnotexist.com or any image generator) or a
-stock photo you are licensed to use. Do not use a photograph of a real person who has
-not agreed to appear in a recording that goes on a public Drive link.
+The committed `face.jpg` is machine-generated (1024×1024, from
+thispersondoesnotexist.com). It depicts nobody, which is the point: this file ends
+up in a screen recording on a public Drive link, and no real person consented to
+that. If you replace it, replace it with another generated image or a stock photo
+you are licensed to use — never a photograph of someone you know.
 
-Until that file exists, `demo/index.html` falls back to `face-placeholder.svg` so the
-page still renders. The placeholder will **not** be detected as a face — that is the
-point of replacing it.
+Fetch a fresh one with:
 
-Keep it under 400KB and roughly portrait-shaped; anything from 200×240 upward is fine.
+```bash
+curl -L -A "Mozilla/5.0" -e "https://thispersondoesnotexist.com/" \
+  -o demo/assets/face.jpg "https://thispersondoesnotexist.com/random-person.jpeg"
+```
+
+The bare domain returns an HTML page, not the image — hence the path and the
+referer.
+
+`face-placeholder.svg` is the fallback `demo/index.html` swaps in if `face.jpg` is
+missing. It renders fine and will **not** be detected as a face.

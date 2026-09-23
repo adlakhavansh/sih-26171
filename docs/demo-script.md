@@ -6,8 +6,8 @@ about a minute.
 ## Before recording
 
 1. `bash tools/fetch-deps.sh` — pulls ONNX Runtime and the face model.
-2. Drop a real portrait at `demo/assets/face.jpg` (see `demo/assets/README.md`).
-   The placeholder will not be detected as a face.
+2. `demo/assets/face.jpg` is committed and machine-generated. Replace it only per `demo/assets/README.md`.
+
 3. `npm run echo` in a terminal.
 4. Load `extension/` unpacked at `chrome://extensions` with Developer mode on.
 5. Serve the demo page over http, not `file://` — content scripts do not run on
