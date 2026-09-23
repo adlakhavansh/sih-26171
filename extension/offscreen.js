@@ -2,6 +2,7 @@
 // DOM, no canvas and no WebGPU, so every image operation lives here.
 
 import { decodeUltraface } from "./src/lib/ultraface.js";
+import { boxesFromProbMap } from "./src/lib/dbnet.js";
 
 // ort.min.js is a classic script loaded by offscreen.html, so it lands on the
 // global object rather than as a module import.
@@ -63,13 +64,37 @@ function toTensor(sourceCanvas, dstW, dstH, mean, scale) {
   return new ort.Tensor("float32", out, [1, 3, dstH, dstW]);
 }
 
+let textPromise = null;
+function textSession() {
+  if (!textPromise) {
+    textPromise = ort.InferenceSession.create(
+      chrome.runtime.getURL("models/ppocr-det.onnx"),
+      { executionProviders: ["webgpu", "wasm"] }
+    );
+  }
+  return textPromise;
+}
+
 async function detectFaces(canvas, width, height) {
   const session = await faceSession();
   const input = toTensor(canvas, 320, 240, [127, 127, 127], [1 / 128, 1 / 128, 1 / 128]);
   const results = await session.run({ [session.inputNames[0]]: input });
-  const scores = results.scores.data;
-  const boxes = results.boxes.data;
-  return decodeUltraface(scores, boxes, width, height, 0.7);
+  return decodeUltraface(results.scores.data, results.boxes.data, width, height, 0.7);
+}
+
+// DBNet wants sides that are multiples of 32. 960 keeps a full-HD viewport
+// legible while staying inside the latency budget in spec §13. Boxes only —
+// Tier 1 reads nothing.
+const TEXT_DIM = 960;
+
+async function detectTextRegions(canvas, width, height) {
+  const session = await textSession();
+  const input = toTensor(canvas, TEXT_DIM, TEXT_DIM,
+    [123.675, 116.28, 103.53], [1 / 58.395, 1 / 57.12, 1 / 57.375]);
+  const results = await session.run({ [session.inputNames[0]]: input });
+  const out = results[session.outputNames[0]];
+  const [, , mapH, mapW] = out.dims;
+  return boxesFromProbMap(out.data, mapW, mapH, width, height, 0.3);
 }
 
 const MASK_COLOURS = {
@@ -98,7 +123,11 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     try {
       const { canvas, ctx, width, height } = await decode(msg.dataUrl);
 
+      // Both passes run before anything is painted or answered. A partial
+      // perception pass means unmasked PII, so there is no early exit. Spec §17.
       const faces = await detectFaces(canvas, width, height);
+      const textBoxes = await detectTextRegions(canvas, width, height);
+
       const masks = faces.map((f) => ({ x: f.x, y: f.y, w: f.w, h: f.h, cls: "FACE" }));
       paintMasks(ctx, masks);
 
@@ -108,6 +137,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         height,
         maskedDataUrl: await toDataUrl(canvas),
         masks,
+        textBoxCount: textBoxes.length,
         backend: activeBackend,
         elapsedMs: Math.round(performance.now() - started)
       });
