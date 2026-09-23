@@ -3,6 +3,8 @@
 
 import { decodeUltraface } from "./src/lib/ultraface.js";
 import { boxesFromProbMap } from "./src/lib/dbnet.js";
+import { sensitiveRegions, fieldMasks } from "./src/lib/triage.js";
+import { contains } from "./src/lib/geometry.js";
 
 // ort.min.js is a classic script loaded by offscreen.html, so it lands on the
 // global object rather than as a module import.
@@ -97,11 +99,37 @@ async function detectTextRegions(canvas, width, height) {
   return boxesFromProbMap(out.data, mapW, mapH, width, height, 0.3);
 }
 
+// Colour-coded by family, per spec §10: identity, identifiers, credentials.
 const MASK_COLOURS = {
   FACE: "#c0392b",
   DOCUMENT: "#8e44ad",
-  SIGNATURE: "#8e44ad"
+  SIGNATURE: "#8e44ad",
+  AADHAAR: "#d35400",
+  PAN: "#d35400",
+  CARD: "#d35400",
+  PHONE: "#d35400",
+  EMAIL: "#d35400",
+  DOB: "#d35400",
+  NAME: "#d35400",
+  ADDRESS: "#d35400",
+  PASSWORD: "#1e6f50"
 };
+
+// Three sources, one list. A region mask already covering a face makes the
+// face's own box redundant — dropping it keeps the count honest, since the
+// panel reports the number of masks as evidence.
+function assembleMasks(blindBoxes, faces, textBoxes, elements) {
+  const regions = sensitiveRegions(blindBoxes, faces, textBoxes, MIN_TEXT_BOXES);
+  const loose = faces
+    .filter((f) => !regions.some((r) => contains(r, f)))
+    .map((f) => ({ x: f.x, y: f.y, w: f.w, h: f.h, cls: "FACE" }));
+  return [...regions, ...loose, ...fieldMasks(elements)];
+}
+
+// Three boxes of text inside one image is the line between a decorative graphic
+// and a document. Low enough to catch an ID card, high enough to leave a logo
+// alone — and the failure direction is over-masking either way.
+const MIN_TEXT_BOXES = 3;
 
 function paintMasks(ctx, masks) {
   // Solid fill, never blur: a blur is reversible in principle, a solid mask is
@@ -128,7 +156,12 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       const faces = await detectFaces(canvas, width, height);
       const textBoxes = await detectTextRegions(canvas, width, height);
 
-      const masks = faces.map((f) => ({ x: f.x, y: f.y, w: f.w, h: f.h, cls: "FACE" }));
+      const masks = assembleMasks(
+        msg.blindBoxes || [],
+        faces,
+        textBoxes,
+        msg.elements || []
+      );
       paintMasks(ctx, masks);
 
       sendResponse({
