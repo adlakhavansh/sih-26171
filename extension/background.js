@@ -28,16 +28,31 @@ async function ensureOffscreen() {
   });
 }
 
-// The side panel is a listener that may not exist yet. A missing panel must not
-// abort the step: the local pipeline does not depend on anything downstream of
-// it. Spec §17.
+// chrome.sidePanel.open() resolves before panel.js has run, so the first
+// PANEL_UPDATE of a session is sent to a page that is not listening yet and is
+// silently dropped. That makes the first click of a fresh panel look like
+// nothing happened — which is the opening move of the demo.
+//
+// Keeping the last payload here and letting the panel pull it on load fixes it
+// from the receiving end, and costs one message.
+let lastPayload = null;
+
 async function tellPanel(payload) {
+  lastPayload = payload;
   try {
     await chrome.runtime.sendMessage({ type: "PANEL_UPDATE", payload });
   } catch (err) {
+    // Panel closed or not yet listening. The local pipeline does not depend on
+    // anything downstream of it. Spec §17.
     console.warn("side panel not listening:", err.message);
   }
 }
+
+chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+  if (msg.type !== "PANEL_REQUEST_LAST") return false;
+  sendResponse(lastPayload);
+  return true;
+});
 
 // Every frame gets its own content script, and each numbers its elements from
 // e0 — so the ids collide the moment a page has an iframe. The merge reassigns
