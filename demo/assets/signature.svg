@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="300" height="160" viewBox="0 0 300 160">
+  <rect width="300" height="160" fill="#ffffff" stroke="#ddd"/>
+  <path d="M24 92 q18 -42 32 -6 t26 -14 q14 34 30 -8 q10 28 26 -4 q18 30 34 -10"
+        fill="none" stroke="#14306b" stroke-width="2.6" stroke-linecap="round"/>
+  <path d="M176 78 q16 22 30 -18 q6 30 22 2" fill="none" stroke="#14306b" stroke-width="2.6" stroke-linecap="round"/>
+  <line x1="24" y1="106" x2="264" y2="106" stroke="#999" stroke-width="1"/>
+  <text x="24" y="124" font-family="Helvetica, sans-serif" font-size="13" fill="#333">Ananya Sharma</text>
+  <text x="24" y="142" font-family="Helvetica, sans-serif" font-size="11" fill="#777">Signed 12/09/2026 · Jaipur</text>
+</svg>

@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="200" height="240" viewBox="0 0 200 240">
+  <rect width="200" height="240" fill="#e6e2d8"/>
+  <circle cx="100" cy="92" r="44" fill="#bdb49c"/>
+  <path d="M28 240 q72 -96 144 0 z" fill="#bdb49c"/>
+  <text x="100" y="228" text-anchor="middle" font-family="Helvetica, sans-serif" font-size="11" fill="#6f6853">
+    drop in face.jpg
+  </text>
+</svg>

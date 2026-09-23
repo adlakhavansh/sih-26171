@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<title>State Scholarship Portal — Application Form</title>
+<style>
+  body { font: 15px system-ui; max-width: 720px; margin: 40px auto; padding: 0 20px; color: #222; }
+  h1 { font-size: 24px; margin-bottom: 4px; }
+  .sub { color: #777; font-size: 13px; margin-top: 0; }
+  label { display: block; margin: 14px 0 4px; font-weight: 600; font-size: 13px; }
+  input { width: 100%; padding: 8px; border: 1px solid #bbb; border-radius: 4px; font-size: 14px; }
+  h2 { font-size: 16px; margin-top: 28px; }
+  .docs { display: flex; gap: 16px; margin: 16px 0; flex-wrap: wrap; align-items: flex-start; }
+  .docs figure { margin: 0; }
+  .docs img { height: 150px; border: 1px solid #ddd; border-radius: 4px; display: block; }
+  figcaption { font-size: 11px; color: #777; margin-top: 4px; }
+  canvas { border: 1px solid #ddd; border-radius: 4px; display: block; }
+</style>
+
+<h1>Scholarship Application</h1>
+<p class="sub">Specimen page. Every value below is synthetic.</p>
+
+<label for="name">Full Name</label>
+<input id="name" autocomplete="name" value="Ananya Sharma">
+
+<label for="aadhaar">Aadhaar Number</label>
+<input id="aadhaar" value="234123412346">
+
+<label for="pan">PAN</label>
+<input id="pan" value="ABCDE1234F">
+
+<label for="phone">Mobile Number</label>
+<input id="phone" autocomplete="tel" value="9876543210">
+
+<label for="email">Email</label>
+<input id="email" autocomplete="email" type="email" value="ananya.sharma@example.com">
+
+<label for="pw">Portal Password</label>
+<input id="pw" type="password" value="hunter2hunter2">
+
+<label for="q">Search this portal</label>
+<input id="q" name="q" value="scholarship deadlines">
+
+<h2>Uploaded Documents</h2>
+<div class="docs">
+  <figure>
+    <img id="photo" src="assets/face.jpg" alt="passport photograph">
+    <figcaption>Photograph</figcaption>
+  </figure>
+  <figure>
+    <img src="assets/id-card.svg" alt="identity document">
+    <figcaption>ID proof</figcaption>
+  </figure>
+  <figure>
+    <img src="assets/signature.svg" alt="specimen signature">
+    <figcaption>Signature</figcaption>
+  </figure>
+</div>
+
+<h2>Declaration (signed)</h2>
+<canvas id="decl" width="620" height="90"></canvas>
+
+<script>
+  // Fall back to the placeholder until a real portrait is dropped in.
+  // See assets/README.md — the placeholder is not detectable as a face.
+  document.getElementById("photo").addEventListener("error", (e) => {
+    e.target.src = "assets/face-placeholder.svg";
+  });
+
+  // Painted into a canvas on purpose: this text is on screen and is not in the
+  // DOM, so no DOM query can reach it. It is the reason the vision pass exists.
+  const ctx = document.getElementById("decl").getContext("2d");
+  ctx.fillStyle = "#fff";
+  ctx.fillRect(0, 0, 620, 90);
+  ctx.fillStyle = "#111";
+  ctx.font = "16px Georgia";
+  ctx.fillText("I, Ananya Sharma, Aadhaar 2341 2341 2346,", 12, 34);
+  ctx.fillText("declare the above particulars to be true.", 12, 62);
+</script>
+</html>

@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="420" height="260" viewBox="0 0 420 260">
+  <rect width="420" height="260" rx="10" fill="#f4f1e8" stroke="#c9c2ad"/>
+  <rect x="0" y="0" width="420" height="44" rx="10" fill="#2b4a6f"/>
+  <rect x="0" y="34" width="420" height="10" fill="#2b4a6f"/>
+  <text x="18" y="29" font-family="Georgia, serif" font-size="17" fill="#fff">GOVERNMENT OF BHARAT — SPECIMEN</text>
+
+  <rect x="18" y="62" width="96" height="112" fill="#dcd6c4" stroke="#b5ad95"/>
+  <circle cx="66" cy="102" r="24" fill="#b0a68c"/>
+  <path d="M30 174 q36 -46 72 0 z" fill="#b0a68c"/>
+  <text x="26" y="188" font-family="Helvetica, sans-serif" font-size="9" fill="#7a735e">PHOTOGRAPH</text>
+
+  <text x="132" y="78" font-family="Helvetica, sans-serif" font-size="11" fill="#6b6454">NAME</text>
+  <text x="132" y="96" font-family="Helvetica, sans-serif" font-size="16" fill="#1d1d1d">Ananya Sharma</text>
+
+  <text x="132" y="122" font-family="Helvetica, sans-serif" font-size="11" fill="#6b6454">DATE OF BIRTH</text>
+  <text x="132" y="140" font-family="Helvetica, sans-serif" font-size="15" fill="#1d1d1d">14/08/2004</text>
+
+  <text x="132" y="166" font-family="Helvetica, sans-serif" font-size="11" fill="#6b6454">IDENTITY NUMBER</text>
+  <text x="132" y="186" font-family="Courier New, monospace" font-size="19" fill="#1d1d1d">2341 2341 2346</text>
+
+  <text x="18" y="212" font-family="Helvetica, sans-serif" font-size="11" fill="#6b6454">ADDRESS</text>
+  <text x="18" y="228" font-family="Helvetica, sans-serif" font-size="13" fill="#1d1d1d">44 Nehru Marg, Jaipur, Rajasthan 302001</text>
+  <text x="18" y="246" font-family="Helvetica, sans-serif" font-size="11" fill="#8a8370">Specimen document. Not a real identity card.</text>
+</svg>
