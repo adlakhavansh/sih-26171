@@ -1,4 +1,23 @@
-// Orchestrator. Owns viewport capture and, from Task 8, the single network call.
+// Orchestrator. Owns viewport capture and the single network call.
+
+import { buildSanitisedContext, isSanitised } from "./src/lib/sanitise.js";
+
+const ENDPOINT = "http://127.0.0.1:8787/context";
+
+let stepCounter = 0;
+
+// The only fetch in the extension. It refuses anything the redactor did not
+// build, so a future code path cannot transmit raw state by accident — the
+// guarantee is enforced here rather than promised elsewhere. Spec §6.
+async function transmit(ctx) {
+  if (!isSanitised(ctx)) throw new Error("refusing to transmit unsanitised context");
+  const res = await fetch(ENDPOINT, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(ctx)
+  });
+  return res.ok;
+}
 
 async function ensureOffscreen() {
   if (await chrome.offscreen.hasDocument()) return;
@@ -70,11 +89,30 @@ async function runStep(tab) {
     return;
   }
 
+  const ctx = buildSanitisedContext({
+    step: ++stepCounter,
+    viewport: { w: result.width, h: result.height },
+    elements,
+    visualHints: result.masks,
+    screenshotDataUrl: result.maskedDataUrl,
+    goal: "Demonstrate client-side redaction"
+  });
+
+  // An unreachable server must not break the local pipeline: perception and
+  // redaction have already happened and are worth showing either way. Spec §17.
+  let delivered = false;
+  try {
+    delivered = await transmit(ctx);
+  } catch (err) {
+    console.warn("echo server unreachable, local pipeline unaffected:", err.message);
+  }
+
   await tellPanel({
-    width: result.width,
-    height: result.height,
-    maskedDataUrl: result.maskedDataUrl,
-    elementCount: elements.length,
+    ctx,
+    delivered,
+    backend: result.backend,
+    elapsedMs: result.elapsedMs,
+    textBoxCount: result.textBoxCount,
     blindCount: blindBoxes.length
   });
 }
