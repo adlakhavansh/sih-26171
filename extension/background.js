@@ -2,6 +2,10 @@
 
 import { buildSanitisedContext, isSanitised } from "./src/lib/sanitise.js";
 
+// If this line is missing from the service worker console, the worker failed to
+// start and no click handler exists — which looks exactly like a dead button.
+console.log("[agent] service worker started", new Date().toISOString());
+
 const ENDPOINT = "http://127.0.0.1:8787/context";
 
 let stepCounter = 0;
@@ -133,10 +137,17 @@ async function runStep(tab) {
 }
 
 chrome.action.onClicked.addListener(async (tab) => {
-  await chrome.sidePanel.open({ windowId: tab.windowId });
+  console.log("[agent] icon clicked on", tab.url);
+  try {
+    // Must be the first call in this handler: it needs the user gesture, and
+    // any await before it spends that gesture.
+    await chrome.sidePanel.open({ windowId: tab.windowId });
+  } catch (err) {
+    console.error("[agent] could not open side panel:", err);
+  }
   try {
     await runStep(tab);
   } catch (err) {
-    console.error("step failed:", err);
+    console.error("[agent] step failed:", err);
   }
 });

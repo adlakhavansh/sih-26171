@@ -10,6 +10,14 @@ import { contains } from "./src/lib/geometry.js";
 // global object rather than as a module import.
 ort.env.wasm.wasmPaths = chrome.runtime.getURL("vendor/ort/");
 
+// Single-threaded on purpose. WASM threads need cross-origin isolation, which an
+// extension page does not have by default; asking for threads without it makes
+// ORT fail to initialise rather than fall back. Spec §13 treats the plain WASM
+// path as the real budget anyway.
+ort.env.wasm.numThreads = 1;
+
+console.log("[agent] offscreen document ready");
+
 // Reported to the panel: which backend actually ran is a resource-metric fact,
 // not a detail. Spec §17.
 let activeBackend = "unknown";
