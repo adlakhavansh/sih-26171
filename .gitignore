@@ -1,0 +1,9 @@
+.claude/
+node_modules/
+dist/
+models/
+*.onnx
+*.task
+.env
+.DS_Store
+scratchpad/
