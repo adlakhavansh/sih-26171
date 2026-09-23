@@ -6,20 +6,35 @@
 // than something the slide asserts. Spec §16.
 
 import http from "node:http";
+import { pathToFileURL } from "node:url";
 
 const PORT = 8787;
 const HOST = "127.0.0.1";
 
 let last = null;
 
-const CORS = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "content-type",
-  "Access-Control-Allow-Methods": "POST, GET, OPTIONS"
-};
+// No CORS headers, deliberately.
+//
+// The extension reaches this server through host_permissions, which bypasses
+// CORS entirely, so it needs no allowance. A wildcard would instead let any
+// page the user happens to be visiting POST whatever it likes into `last`,
+// which then gets rendered here. Requiring application/json closes the
+// simple-request route as well: that content type forces a preflight, and the
+// preflight now fails.
+const JSON_HEADERS = { "content-type": "application/json" };
 
-function escapeHtml(s) {
-  return s.replace(/[<&>]/g, (c) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;" }[c]));
+const ESCAPES = { "<": "&lt;", ">": "&gt;", "&": "&amp;", '"': "&quot;", "'": "&#39;" };
+
+export function escapeHtml(s) {
+  return String(s).replace(/[<>&"']/g, (c) => ESCAPES[c]);
+}
+
+// The screenshot is interpolated into an img src attribute, so it is validated
+// rather than escaped: an allowlist of exactly the shape the redactor produces.
+// Anything else is not rendered at all.
+export function isSafeDataUrl(value) {
+  return typeof value === "string" &&
+    /^data:image\/(png|jpeg);base64,[A-Za-z0-9+/]+={0,2}$/.test(value);
 }
 
 function renderPage() {
@@ -42,7 +57,7 @@ function renderPage() {
   .counts{color:#9fd;margin:10px 0}
 </style>
 <h2>Exactly what the server received</h2>
-${last.screenshot ? `<img src="${last.screenshot}" alt="received capture">` : ""}
+${isSafeDataUrl(last.screenshot) ? `<img src="${last.screenshot}" alt="received capture">` : ""}
 <p class="counts">step ${last.step} &middot; ${last.elements.length} elements &middot;
 ${sensitive.length} sensitive fields, all reported as class only &middot;
 ${last.visualHints.length} regions masked before sending</p>
@@ -51,12 +66,14 @@ ${last.visualHints.length} regions masked before sending</p>
 }
 
 const server = http.createServer((req, res) => {
-  if (req.method === "OPTIONS") {
-    res.writeHead(204, CORS);
-    return res.end();
-  }
-
   if (req.method === "POST" && req.url === "/context") {
+    // Without this check a page could post a simple request with
+    // content-type: text/plain, skip the preflight, and write into `last`.
+    if (!String(req.headers["content-type"] || "").startsWith("application/json")) {
+      res.writeHead(415, JSON_HEADERS);
+      return res.end(JSON.stringify({ error: "expected application/json" }));
+    }
+
     let body = "";
     req.on("data", (c) => { body += c; });
     req.on("end", () => {
@@ -69,25 +86,29 @@ const server = http.createServer((req, res) => {
           `${ctx.elements.length} elements, ${sensitive} sensitive fields, ` +
           `${ctx.visualHints.length} masked regions, ${body.length} bytes`
         );
-        res.writeHead(200, { ...CORS, "content-type": "application/json" });
+        res.writeHead(200, JSON_HEADERS);
         res.end(JSON.stringify({ ok: true }));
       } catch (err) {
-        res.writeHead(400, CORS);
-        res.end(String(err));
+        res.writeHead(400, JSON_HEADERS);
+        res.end(JSON.stringify({ error: String(err) }));
       }
     });
     return;
   }
 
   if (req.method === "GET" && req.url === "/") {
-    res.writeHead(200, { ...CORS, "content-type": "text/html; charset=utf-8" });
+    res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
     return res.end(renderPage());
   }
 
-  res.writeHead(404, CORS);
+  res.writeHead(404, JSON_HEADERS);
   res.end();
 });
 
-server.listen(PORT, HOST, () => {
-  console.log(`echo server on http://${HOST}:${PORT} — open it to watch what arrives`);
-});
+// Only listen when run directly, so the tests can import the helpers above
+// without leaving a socket open.
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  server.listen(PORT, HOST, () => {
+    console.log(`echo server on http://${HOST}:${PORT} — open it to watch what arrives`);
+  });
+}
