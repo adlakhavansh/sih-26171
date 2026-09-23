@@ -1,0 +1,16 @@
+{
+  "manifest_version": 3,
+  "name": "Privacy-First Browser Agent (Tier 1)",
+  "version": "0.1.0",
+  "description": "On-device visual perception with client-side PII redaction.",
+  "permissions": ["activeTab", "scripting", "tabs", "offscreen", "sidePanel"],
+  "host_permissions": ["<all_urls>"],
+  "background": { "service_worker": "background.js", "type": "module" },
+  "side_panel": { "default_path": "panel.html" },
+  "action": { "default_title": "Perceive and redact this page" },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"
+  },
+  "cross_origin_embedder_policy": { "value": "require-corp" },
+  "cross_origin_opener_policy": { "value": "same-origin" }
+}

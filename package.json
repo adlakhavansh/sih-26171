@@ -1,0 +1,10 @@
+{
+  "name": "sih26171",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test tests/",
+    "echo": "node tools/echo-server.js"
+  }
+}

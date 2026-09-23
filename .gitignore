@@ -7,3 +7,4 @@ models/
 .env
 .DS_Store
 scratchpad/
+.superpowers/
