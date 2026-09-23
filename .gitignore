@@ -8,3 +8,6 @@ models/
 .DS_Store
 scratchpad/
 .superpowers/
+extension/vendor/ort/*.wasm
+extension/vendor/ort/*.mjs
+extension/vendor/ort/ort.min.js
