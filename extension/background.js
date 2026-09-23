@@ -53,9 +53,30 @@ async function tellPanel(payload) {
 }
 
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
-  if (msg.type !== "PANEL_REQUEST_LAST") return false;
-  sendResponse(lastPayload);
-  return true;
+  if (msg.type === "PANEL_REQUEST_LAST") {
+    sendResponse(lastPayload);
+    return true;
+  }
+
+  // The panel drives the run. Whether clicking the toolbar icon fires
+  // action.onClicked or just opens the panel differs between Chrome versions,
+  // and a demo cannot rest on which one this machine does.
+  if (msg.type === "RUN_STEP") {
+    (async () => {
+      try {
+        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+        if (!tab) throw new Error("no active tab");
+        await runStep(tab);
+        sendResponse({ ok: true });
+      } catch (err) {
+        console.error("[agent] step failed:", err);
+        sendResponse({ ok: false, error: String(err && err.message || err) });
+      }
+    })();
+    return true;
+  }
+
+  return false;
 });
 
 // Every frame gets its own content script, and each numbers its elements from
@@ -136,18 +157,19 @@ async function runStep(tab) {
   });
 }
 
+// Clicking the toolbar icon opens the panel, full stop. The panel's own button
+// then runs a step. One deterministic path instead of two version-dependent ones.
+chrome.sidePanel
+  .setPanelBehavior({ openPanelOnActionClick: true })
+  .catch((err) => console.error("[agent] setPanelBehavior failed:", err));
+
+// Kept as a fallback for Chrome versions where the behaviour above is ignored
+// and onClicked fires instead.
 chrome.action.onClicked.addListener(async (tab) => {
   console.log("[agent] icon clicked on", tab.url);
   try {
-    // Must be the first call in this handler: it needs the user gesture, and
-    // any await before it spends that gesture.
     await chrome.sidePanel.open({ windowId: tab.windowId });
   } catch (err) {
     console.error("[agent] could not open side panel:", err);
-  }
-  try {
-    await runStep(tab);
-  } catch (err) {
-    console.error("[agent] step failed:", err);
   }
 });

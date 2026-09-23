@@ -31,3 +31,21 @@ chrome.runtime.onMessage.addListener((msg) => {
 chrome.runtime.sendMessage({ type: "PANEL_REQUEST_LAST" })
   .then(render)
   .catch(() => { /* no step has run yet */ });
+
+const runButton = document.getElementById("run");
+const status = document.getElementById("status");
+
+runButton.addEventListener("click", async () => {
+  runButton.disabled = true;
+  runButton.textContent = "Perceiving…";
+  status.textContent = "";
+  try {
+    const res = await chrome.runtime.sendMessage({ type: "RUN_STEP" });
+    if (res && res.ok === false) status.textContent = res.error;
+  } catch (err) {
+    status.textContent = String(err && err.message || err);
+  } finally {
+    runButton.disabled = false;
+    runButton.textContent = "Perceive and redact this page";
+  }
+});
