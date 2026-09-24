@@ -79,6 +79,23 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   return false;
 });
 
+// Reloading the extension leaves the old content script orphaned in tabs that
+// were already open, and the declarative registration does not re-run until the
+// page reloads. Asking first and injecting only when that fails keeps the fast
+// path fast and stops the whole DOM pass from silently collapsing to zero
+// elements because of the order someone happened to reload things in.
+async function askFrame(tabId, frameId) {
+  try {
+    return await chrome.tabs.sendMessage(tabId, { type: "DOM_REPORT" }, { frameId });
+  } catch {
+    await chrome.scripting.executeScript({
+      target: { tabId, frameIds: [frameId] },
+      files: ["content.js"]
+    });
+    return await chrome.tabs.sendMessage(tabId, { type: "DOM_REPORT" }, { frameId });
+  }
+}
+
 // Every frame gets its own content script, and each numbers its elements from
 // e0 — so the ids collide the moment a page has an iframe. The merge reassigns
 // them, which is also the only place that can: no frame can see another's.
@@ -96,11 +113,13 @@ async function collectDom(tabId) {
   for (const frameId of frameIds) {
     let report;
     try {
-      report = await chrome.tabs.sendMessage(tabId, { type: "DOM_REPORT" }, { frameId });
-    } catch {
+      report = await askFrame(tabId, frameId);
+    } catch (err) {
       // No content script here — cross-origin or a restricted frame. Its pixels
       // are still in the screenshot, so the vision pass covers the area. This
-      // degrades to over-masking, never to leaking. Spec §17.
+      // degrades to over-masking, never to leaking. Spec §17. Logged because a
+      // silently skipped top frame looks identical to a page with no fields.
+      console.warn(`frame ${frameId} reported no DOM:`, err.message);
       continue;
     }
     if (!report) continue;

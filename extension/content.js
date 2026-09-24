@@ -8,6 +8,12 @@
 // seen (spec §3).
 
 (function () {
+  // Reloading the extension orphans this script in already-open tabs, so the
+  // background re-injects it on demand. Injection is therefore not once-per-page
+  // and the listener must not stack up.
+  if (window.__agentDomReporterReady) return;
+  window.__agentDomReporterReady = true;
+
   const INTERACTIVE =
     "input,select,textarea,button,a[href],[role=button],[role=textbox],[contenteditable=true]";
   const BLIND = "img,canvas,svg,video,iframe,object,embed";
