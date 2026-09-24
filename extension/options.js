@@ -23,7 +23,14 @@ for (const key of VAULT_KEYS) {
   form.append(label, input);
 }
 
-const { vault = {} } = await chrome.storage.local.get("vault");
+let vault = {};
+try {
+  const result = await chrome.storage.local.get("vault");
+  vault = result.vault || {};
+} catch (e) {
+  status.textContent = "Your saved values could not be loaded; saving will overwrite them.";
+}
+
 for (const key of VAULT_KEYS) {
   document.getElementById(key).value = vault[key] || "";
 }
