@@ -62,6 +62,16 @@
       r.top < window.innerHeight && r.left < window.innerWidth;
   }
 
+  // collect() and act() must agree on what "e3" means. One walk, used by both.
+  function interactiveNodes() {
+    const out = [];
+    for (const el of document.querySelectorAll(INTERACTIVE)) {
+      if (!visible(el.getBoundingClientRect())) continue;
+      out.push(el);
+    }
+    return out;
+  }
+
   function collect() {
     const dpr = window.devicePixelRatio || 1;
     const off = frameOffset();
@@ -74,7 +84,7 @@
 
     const elements = [];
     let n = 0;
-    for (const el of document.querySelectorAll(INTERACTIVE)) {
+    for (const el of interactiveNodes()) {
       const r = el.getBoundingClientRect();
       if (!visible(r)) continue;
       elements.push({
@@ -104,9 +114,87 @@
     return { elements, blindBoxes, dpr };
   }
 
+  // Fires the events a real user's interaction would, so frameworks listening
+  // for input/change see the same thing they would from a keyboard.
+  function setValue(el, value) {
+    const proto = el instanceof HTMLTextAreaElement
+      ? HTMLTextAreaElement.prototype
+      : HTMLInputElement.prototype;
+    const setter = Object.getOwnPropertyDescriptor(proto, "value")?.set;
+    if (setter) setter.call(el, value); else el.value = value;
+    el.dispatchEvent(new Event("input", { bubbles: true }));
+    el.dispatchEvent(new Event("change", { bubbles: true }));
+  }
+
+  function act({ localIndex, expect, action, value }) {
+    if (action === "scroll") {
+      window.scrollBy({ top: Math.round(window.innerHeight * 0.8), behavior: "instant" });
+      return { ok: true };
+    }
+
+    const nodes = interactiveNodes();
+    const el = nodes[localIndex];
+    if (!el) return { ok: false, reason: "element no longer present" };
+
+    // The page can change between perceive and act. An index alone would then
+    // point at a different control and we would click the wrong thing, which is
+    // worse than doing nothing.
+    if (expect) {
+      if (el.tagName.toLowerCase() !== expect.tag) {
+        return { ok: false, reason: "element changed since it was perceived" };
+      }
+      if (expect.label && labelFor(el) !== expect.label) {
+        return { ok: false, reason: "element changed since it was perceived" };
+      }
+    }
+
+    switch (action) {
+      case "click":
+        el.click();
+        return { ok: true };
+
+      case "type": {
+        const typeable = el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement;
+        // Review Focus 4: a button has no value to set. Refuse, do not throw.
+        if (!typeable) return { ok: false, reason: "target does not accept text" };
+        el.focus();
+        setValue(el, value);
+        return { ok: true };
+      }
+
+      case "select": {
+        if (!(el instanceof HTMLSelectElement)) {
+          return { ok: false, reason: "target is not a select" };
+        }
+        setValue(el, value);
+        return { ok: true };
+      }
+
+      case "submit": {
+        const form = el.closest("form");
+        if (!form) return { ok: false, reason: "target is not inside a form" };
+        form.requestSubmit();
+        return { ok: true };
+      }
+
+      default:
+        return { ok: false, reason: `${action} is not executable here` };
+    }
+  }
+
   chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
-    if (msg.type !== "DOM_REPORT") return false;
-    sendResponse(collect());
-    return true;
+    if (msg.type === "DOM_REPORT") {
+      sendResponse(collect());
+      return true;
+    }
+    if (msg.type === "DOM_ACT") {
+      try {
+        sendResponse(act(msg));
+      } catch (err) {
+        sendResponse({ ok: false, reason: String(err && err.message || err) });
+      }
+      return true;
+    }
+    return false;
   });
 })();
