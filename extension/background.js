@@ -50,6 +50,13 @@ const BRIDGE_URL = "ws://127.0.0.1:8788";
 // match this is acting on a page nobody perceived.
 let currentStep = null;
 let bridgeState = "disconnected";
+// Bumped on every status transition. A perceive that started before a
+// disconnect/reconnect must not arm a step after the fact — Review round 1,
+// finding 2.
+let connectionGeneration = 0;
+// One perceive at a time: overlapping calls race on `currentStep` and can trip
+// Chrome's captureVisibleTab rate limit — Review round 1, finding 4.
+let perceiveInProgress = false;
 
 async function tellPanel(payload) {
   lastPayload = payload;
@@ -147,6 +154,10 @@ async function collectDom(tabId) {
   return { elements, blindBoxes, handles };
 }
 
+// Returns { ctx, handles }, or null on perception failure. Does not arm
+// `currentStep` itself: a panel click and a bridge perceive both run this, and
+// only the bridge path (see handlePerceive) is allowed to arm a live step —
+// Review round 1, finding 1.
 async function runStep(tab, goal = "Demonstrate client-side redaction") {
   await ensureOffscreen();
 
@@ -161,7 +172,7 @@ async function runStep(tab, goal = "Demonstrate client-side redaction") {
 
   if (!result || result.type === "OFFSCREEN_ERROR") {
     console.error("perception failed, nothing rendered:", result?.message);
-    return;
+    return null;
   }
 
   const ctx = buildSanitisedContext({
@@ -191,8 +202,7 @@ async function runStep(tab, goal = "Demonstrate client-side redaction") {
     blindCount: blindBoxes.length
   });
 
-  currentStep = { tabId: tab.id, handles };
-  return ctx;
+  return { ctx, handles };
 }
 
 // Clicking the toolbar icon opens the panel, full stop. The panel's own button
@@ -213,18 +223,42 @@ chrome.action.onClicked.addListener(async (tab) => {
 });
 
 async function handlePerceive({ goal }) {
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  if (!tab) return { ok: false, reason: "no active tab" };
+  if (perceiveInProgress) return { ok: false, reason: "a perception is already in progress" };
+  perceiveInProgress = true;
 
-  const ctx = await runStep(tab, goal || "Complete the form");
-  if (!ctx) return { ok: false, reason: "perception failed" };
+  // A goal is a short instruction, not a payload: coerce anything else to the
+  // default and cap its length. Review round 1, finding 5.
+  let safeGoal = typeof goal === "string" ? goal.trim() : "";
+  if (!safeGoal) safeGoal = "Complete the form";
+  safeGoal = safeGoal.slice(0, 200);
 
-  // The same gate the echo server goes through. Adding a consumer adds a
-  // consumer, not an exit. Tier 2 spec §6.
-  if (!isSanitised(ctx)) return { ok: false, reason: "refusing to send unsanitised context" };
+  const generation = connectionGeneration;
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!tab) return { ok: false, reason: "no active tab" };
 
-  const { vault = {} } = await chrome.storage.local.get("vault");
-  return { ok: true, context: ctx, vaultKeys: configuredKeys(vault) };
+    const step = await runStep(tab, safeGoal);
+    if (!step) return { ok: false, reason: "perception failed" };
+    const { ctx, handles } = step;
+
+    // The same gate the echo server goes through. Adding a consumer adds a
+    // consumer, not an exit. Tier 2 spec §6.
+    if (!isSanitised(ctx)) return { ok: false, reason: "refusing to send unsanitised context" };
+
+    // The socket may have dropped and reconnected while this perceive was in
+    // flight; the handles it collected describe a step nobody on the other end
+    // is waiting for. Review round 1, finding 2.
+    if (generation !== connectionGeneration) {
+      return { ok: false, reason: "connection changed during perception" };
+    }
+
+    currentStep = { tabId: tab.id, handles };
+
+    const { vault = {} } = await chrome.storage.local.get("vault");
+    return { ok: true, context: ctx, vaultKeys: configuredKeys(vault) };
+  } finally {
+    perceiveInProgress = false;
+  }
 }
 
 async function handleAct(action) {
@@ -249,22 +283,27 @@ async function handleAct(action) {
   }
 
   const handle = currentStep.handles.get(action.target) || { frameId: 0, localIndex: -1 };
-  const response = await chrome.tabs.sendMessage(
-    currentStep.tabId,
-    {
-      type: "DOM_ACT",
-      localIndex: handle.localIndex,
-      expect: { tag: handle.tag, label: handle.label, name: handle.name, inputType: handle.inputType },
-      action: action.action,
-      value
-    },
-    { frameId: handle.frameId }
-  );
-
-  // The step the planner reasoned about is spent. It must perceive again before
-  // it may act again.
-  currentStep = null;
-  return response || { ok: false, reason: "no response from page" };
+  try {
+    const response = await chrome.tabs.sendMessage(
+      currentStep.tabId,
+      {
+        type: "DOM_ACT",
+        localIndex: handle.localIndex,
+        expect: { tag: handle.tag, label: handle.label, name: handle.name, inputType: handle.inputType },
+        action: action.action,
+        value
+      },
+      { frameId: handle.frameId }
+    );
+    return response || { ok: false, reason: "no response from page" };
+  } catch (err) {
+    return { ok: false, reason: String(err && err.message || err) };
+  } finally {
+    // The step the planner reasoned about is spent whether the send succeeded
+    // or not. It must perceive again before it may act again. Review round 1,
+    // finding 3.
+    currentStep = null;
+  }
 }
 
 connectBridge({
@@ -273,6 +312,7 @@ connectBridge({
   onAct: handleAct,
   onStatus: ({ state }) => {
     bridgeState = state;
+    connectionGeneration++;
     // Review Focus 5: a reconnect means the worker may have restarted, so the
     // ids the planner holds no longer describe anything.
     if (state !== "connected") currentStep = null;
