@@ -18,8 +18,11 @@ ort.env.wasm.numThreads = 1;
 
 console.log("[agent] offscreen document ready");
 
-// Reported to the panel: which backend actually ran is a resource-metric fact,
-// not a detail. Spec §17.
+// WASM only. ORT picks the execution provider when the session is created, not
+// per kernel, so listing webgpu first commits to it with no runtime fallback --
+// and UltraFace's Mul op fails on the WebGPU backend ("Failed to generate
+// kernel's output[0] with dims [1,4420,2]"). Reported to the panel because which
+// backend actually ran is a resource-metric fact, not a detail. Spec §17.
 let activeBackend = "unknown";
 
 let facePromise = null;
@@ -27,10 +30,10 @@ function faceSession() {
   if (!facePromise) {
     facePromise = ort.InferenceSession
       .create(chrome.runtime.getURL("models/ultraface-rfb-320.onnx"), {
-        executionProviders: ["webgpu", "wasm"]
+        executionProviders: ["wasm"]
       })
       .then((s) => {
-        activeBackend = navigator.gpu ? "webgpu" : "wasm";
+        activeBackend = "wasm";
         return s;
       });
   }
@@ -79,7 +82,7 @@ function textSession() {
   if (!textPromise) {
     textPromise = ort.InferenceSession.create(
       chrome.runtime.getURL("models/ppocr-det.onnx"),
-      { executionProviders: ["webgpu", "wasm"] }
+      { executionProviders: ["wasm"] }
     );
   }
   return textPromise;
