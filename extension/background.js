@@ -1,6 +1,9 @@
 // Orchestrator. Owns viewport capture and the single network call.
 
 import { buildSanitisedContext, isSanitised } from "./src/lib/sanitise.js";
+import { connectBridge } from "./src/bridge-client.js";
+import { configuredKeys, resolveVaultValue } from "./src/lib/vault.js";
+import { validateAction } from "./src/lib/action.js";
 
 // If this line is missing from the service worker console, the worker failed to
 // start and no click handler exists — which looks exactly like a dead button.
@@ -40,6 +43,13 @@ async function ensureOffscreen() {
 // Keeping the last payload here and letting the panel pull it on load fixes it
 // from the receiving end, and costs one message.
 let lastPayload = null;
+
+const BRIDGE_URL = "ws://127.0.0.1:8788";
+
+// The handles of the step the planner has actually seen. An `act` that does not
+// match this is acting on a page nobody perceived.
+let currentStep = null;
+let bridgeState = "disconnected";
 
 async function tellPanel(payload) {
   lastPayload = payload;
@@ -110,6 +120,7 @@ async function collectDom(tabId) {
 
   const elements = [];
   const blindBoxes = [];
+  const handles = new Map();
   for (const frameId of frameIds) {
     let report;
     try {
@@ -123,18 +134,23 @@ async function collectDom(tabId) {
       continue;
     }
     if (!report) continue;
-    for (const el of report.elements) {
-      elements.push({ ...el, id: `e${elements.length}` });
+    for (let i = 0; i < report.elements.length; i++) {
+      const el = report.elements[i];
+      const id = `e${elements.length}`;
+      elements.push({ ...el, id });
+      // The planner sees only `id`. This map is how the client turns that back
+      // into a node, and it never leaves the service worker.
+      handles.set(id, { frameId, localIndex: i, tag: el.tag, label: el.label, name: el.name, inputType: el.inputType });
     }
     blindBoxes.push(...report.blindBoxes);
   }
-  return { elements, blindBoxes };
+  return { elements, blindBoxes, handles };
 }
 
-async function runStep(tab) {
+async function runStep(tab, goal = "Demonstrate client-side redaction") {
   await ensureOffscreen();
 
-  const { elements, blindBoxes } = await collectDom(tab.id);
+  const { elements, blindBoxes, handles } = await collectDom(tab.id);
   const dataUrl = await chrome.tabs.captureVisibleTab(tab.windowId, { format: "png" });
   const result = await chrome.runtime.sendMessage({
     type: "OFFSCREEN_PROCESS",
@@ -154,7 +170,7 @@ async function runStep(tab) {
     elements,
     visualHints: result.masks,
     screenshotDataUrl: result.maskedDataUrl,
-    goal: "Demonstrate client-side redaction"
+    goal
   });
 
   // An unreachable server must not break the local pipeline: perception and
@@ -174,6 +190,9 @@ async function runStep(tab) {
     textBoxCount: result.textBoxCount,
     blindCount: blindBoxes.length
   });
+
+  currentStep = { tabId: tab.id, handles };
+  return ctx;
 }
 
 // Clicking the toolbar icon opens the panel, full stop. The panel's own button
@@ -190,5 +209,73 @@ chrome.action.onClicked.addListener(async (tab) => {
     await chrome.sidePanel.open({ windowId: tab.windowId });
   } catch (err) {
     console.error("[agent] could not open side panel:", err);
+  }
+});
+
+async function handlePerceive({ goal }) {
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (!tab) return { ok: false, reason: "no active tab" };
+
+  const ctx = await runStep(tab, goal || "Complete the form");
+  if (!ctx) return { ok: false, reason: "perception failed" };
+
+  // The same gate the echo server goes through. Adding a consumer adds a
+  // consumer, not an exit. Tier 2 spec §6.
+  if (!isSanitised(ctx)) return { ok: false, reason: "refusing to send unsanitised context" };
+
+  const { vault = {} } = await chrome.storage.local.get("vault");
+  return { ok: true, context: ctx, vaultKeys: configuredKeys(vault) };
+}
+
+async function handleAct(action) {
+  if (!currentStep) return { ok: false, reason: "nothing has been perceived yet" };
+
+  const { vault = {} } = await chrome.storage.local.get("vault");
+  const check = validateAction(action, {
+    elementIds: [...currentStep.handles.keys()],
+    vaultKeys: configuredKeys(vault)
+  });
+  if (!check.ok) return { ok: false, reason: check.reason };
+
+  if (action.action === "done" || action.action === "ask_user") {
+    return { ok: true, finished: true, reason: action.reason };
+  }
+
+  let value;
+  if (action.action === "type" || action.action === "select") {
+    const resolved = resolveVaultValue(vault, action.valueKey);
+    if (!resolved.ok) return { ok: false, reason: resolved.reason };
+    value = resolved.value;
+  }
+
+  const handle = currentStep.handles.get(action.target) || { frameId: 0, localIndex: -1 };
+  const response = await chrome.tabs.sendMessage(
+    currentStep.tabId,
+    {
+      type: "DOM_ACT",
+      localIndex: handle.localIndex,
+      expect: { tag: handle.tag, label: handle.label, name: handle.name, inputType: handle.inputType },
+      action: action.action,
+      value
+    },
+    { frameId: handle.frameId }
+  );
+
+  // The step the planner reasoned about is spent. It must perceive again before
+  // it may act again.
+  currentStep = null;
+  return response || { ok: false, reason: "no response from page" };
+}
+
+connectBridge({
+  url: BRIDGE_URL,
+  onPerceive: handlePerceive,
+  onAct: handleAct,
+  onStatus: ({ state }) => {
+    bridgeState = state;
+    // Review Focus 5: a reconnect means the worker may have restarted, so the
+    // ids the planner holds no longer describe anything.
+    if (state !== "connected") currentStep = null;
+    tellPanel(lastPayload ? { ...lastPayload, bridgeState } : { bridgeState });
   }
 });

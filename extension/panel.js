@@ -1,5 +1,11 @@
 function render(payload) {
   if (!payload) return;
+  if (payload.bridgeState) {
+    document.getElementById("bridge").textContent = `planner: ${payload.bridgeState}`;
+  }
+  // A connection-status update carries no perception result. Rendering the rest
+  // would dereference a ctx that is not there and blank the panel mid-demo.
+  if (!payload.ctx) return;
   const { ctx, delivered, backend, elapsedMs, textBoxCount, blindCount } = payload;
 
   const sensitive = ctx.elements.filter((e) => e.piiClass);
