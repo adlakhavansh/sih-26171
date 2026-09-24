@@ -117,11 +117,19 @@
   // Fires the events a real user's interaction would, so frameworks listening
   // for input/change see the same thing they would from a keyboard.
   function setValue(el, value) {
-    const proto = el instanceof HTMLTextAreaElement
-      ? HTMLTextAreaElement.prototype
-      : HTMLInputElement.prototype;
-    const setter = Object.getOwnPropertyDescriptor(proto, "value")?.set;
-    if (setter) setter.call(el, value); else el.value = value;
+    // Only input/textarea get framework-shadowed value setters bypassed via
+    // the native prototype setter. Nothing shadows <select>, so it assigns
+    // directly — calling the input/textarea setter on it throws (receiver
+    // branding on native WebIDL accessors).
+    if (el instanceof HTMLSelectElement) {
+      el.value = value;
+    } else {
+      const proto = el instanceof HTMLTextAreaElement
+        ? HTMLTextAreaElement.prototype
+        : HTMLInputElement.prototype;
+      const setter = Object.getOwnPropertyDescriptor(proto, "value")?.set;
+      if (setter) setter.call(el, value); else el.value = value;
+    }
     el.dispatchEvent(new Event("input", { bubbles: true }));
     el.dispatchEvent(new Event("change", { bubbles: true }));
   }
@@ -144,6 +152,15 @@
         return { ok: false, reason: "element changed since it was perceived" };
       }
       if (expect.label && labelFor(el) !== expect.label) {
+        return { ok: false, reason: "element changed since it was perceived" };
+      }
+      // Same tag and label alone still collides for two identically-labelled
+      // controls (or two unlabelled ones). name/inputType narrow it the same
+      // way collect() already records them.
+      if (expect.name && (el.getAttribute("name") || "") !== expect.name) {
+        return { ok: false, reason: "element changed since it was perceived" };
+      }
+      if (expect.inputType && (el.type || "") !== expect.inputType) {
         return { ok: false, reason: "element changed since it was perceived" };
       }
     }
