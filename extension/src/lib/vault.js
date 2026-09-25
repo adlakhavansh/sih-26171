@@ -7,6 +7,27 @@
 
 export const VAULT_KEYS = ["name", "aadhaar", "pan", "phone", "email"];
 
+// Which key belongs in a field the classifier has already recognised. The
+// classes come from §9's taxonomy, which is broader than the vault: a PASSWORD
+// or ADDRESS field has no key here and so is not typable at all.
+const KEY_FOR_CLASS = {
+  NAME: "name",
+  AADHAAR: "aadhaar",
+  PAN: "pan",
+  PHONE: "phone",
+  EMAIL: "email"
+};
+
+// The keys a given field may legitimately receive. A recognised field accepts
+// exactly one, which is what stops a name being typed into the Aadhaar box: the
+// pairing is wrong, so it must be unrepresentable rather than merely unlikely.
+// An unrecognised field falls back to the whole configured vault.
+export function vaultKeysForField(piiClass, configured) {
+  const key = KEY_FOR_CLASS[piiClass];
+  if (!key) return piiClass ? [] : [...configured];
+  return configured.includes(key) ? [key] : [];
+}
+
 function filled(value) {
   return typeof value === "string" && value.trim().length > 0;
 }
