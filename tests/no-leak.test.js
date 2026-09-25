@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { buildSanitisedContext } from "../extension/src/lib/sanitise.js";
+import { buildSanitisedContext, isSanitised } from "../extension/src/lib/sanitise.js";
+import { resolveVaultValue } from "../extension/src/lib/vault.js";
 
 // The secrets that are actually on demo/index.html. If any of these reaches the
 // serialised payload, the central claim of the project is false — so they are
@@ -40,14 +41,16 @@ const elements = [
     valuePresent: true, value: "scholarship deadlines" }
 ];
 
-const payload = JSON.stringify(buildSanitisedContext({
+const ctx = buildSanitisedContext({
   step: 1,
   viewport: { w: 1280, h: 800 },
   elements,
   visualHints: [{ x: 0, y: 0, w: 10, h: 10, cls: "DOCUMENT" }],
   screenshotDataUrl: "data:image/jpeg;base64,AAAA",
   goal: "Demonstrate client-side redaction"
-}));
+});
+
+const payload = JSON.stringify(ctx);
 
 for (const secret of SECRETS) {
   test(`the outbound payload does not contain ${JSON.stringify(secret)}`, () => {
@@ -76,4 +79,29 @@ test("the ordinary field keeps its label and is not redacted", () => {
   const search = ctx.elements.find((e) => e.id === "e6");
   assert.equal(search.piiClass, null);
   assert.equal(search.valueClass, "filled");
+});
+
+// The bridge is a second destination, and the mistake available here is a
+// second send path that skips the gate. These tests hold the new egress to the
+// same standard as the old one. Tier 2 spec §6.
+
+test("what the bridge would send the planner contains none of the page's secrets", () => {
+  // Exactly what handlePerceive puts on the wire.
+  const wire = JSON.stringify({ ok: true, context: ctx, vaultKeys: ["name", "pan"] });
+  for (const secret of SECRETS) {
+    assert.ok(!wire.includes(secret), `${secret} reached the planner`);
+  }
+});
+
+test("the bridge path refuses a context the redactor did not build", () => {
+  const forged = { step: 1, elements: [{ id: "e0", value: "ABCDE1234F" }] };
+  assert.equal(isSanitised(forged), false);
+});
+
+test("a vault value never appears in anything sent to the planner", () => {
+  const vault = { name: "Ananya Sharma", pan: "ABCDE1234F" };
+  const resolved = resolveVaultValue(vault, "pan");
+  assert.equal(resolved.ok, true);
+  const wire = JSON.stringify({ ok: true, context: ctx, vaultKeys: ["name", "pan"] });
+  assert.ok(!wire.includes(resolved.value), "vault value reached the planner");
 });
