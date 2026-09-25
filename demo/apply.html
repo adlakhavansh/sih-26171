@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<title>State Scholarship Portal — New Application</title>
+<style>
+  body { font: 15px system-ui; max-width: 720px; margin: 40px auto; padding: 0 20px; color: #222; }
+  h1 { font-size: 24px; margin-bottom: 4px; }
+  .sub { color: #777; font-size: 13px; margin-top: 0; }
+  label { display: block; margin: 14px 0 4px; font-weight: 600; font-size: 13px; }
+  input { width: 100%; padding: 8px; border: 1px solid #bbb; border-radius: 4px; font-size: 14px; }
+  button { margin-top: 22px; padding: 9px 18px; font: inherit; border: 0; border-radius: 4px;
+           background: #1a7f37; color: #fff; cursor: pointer; }
+</style>
+
+<h1>New Scholarship Application</h1>
+<p class="sub">
+  Blank counterpart to the specimen page: the agent has something to fill here.
+  Values come from the vault at the moment of typing, never from the planner.
+</p>
+
+<form id="application">
+  <label for="name">Full Name</label>
+  <input id="name" autocomplete="name">
+
+  <label for="aadhaar">Aadhaar Number</label>
+  <input id="aadhaar">
+
+  <label for="pan">PAN</label>
+  <input id="pan">
+
+  <label for="phone">Mobile Number</label>
+  <input id="phone" autocomplete="tel">
+
+  <label for="email">Email</label>
+  <input id="email" type="email" autocomplete="email">
+
+  <button type="submit">Submit application</button>
+</form>
+
+<script>
+  // Irreversible in the way that matters for the demo: the agent must stop and
+  // ask before reaching this, and a stray submit must not reload the page.
+  document.getElementById("application").addEventListener("submit", (e) => {
+    e.preventDefault();
+    alert("Submitted. (Nothing left this machine.)");
+  });
+</script>
+</html>
