@@ -8,8 +8,8 @@ sends only the masked result anywhere. Nothing sensitive leaves the machine,
 and the demo lets you watch that happen rather than take it on trust.
 
 This repository is **Tier 1**: local perception and redaction, no planner. The
-full design — including the server-side VLM, the MCP bridge and the multi-step
-action loop — is in the spec.
+full design, including the server-side VLM, the MCP bridge and the multi-step
+action loop, is in the spec.
 
 - Design: `docs/superpowers/specs/2026-09-23-sih26171-design.md`
 - Build plan: `docs/superpowers/plans/2026-09-23-tier1-perception-redaction.md`
@@ -27,8 +27,8 @@ npx --yes serve demo -l 5500      # the demo page over http
 Then load `extension/` unpacked at `chrome://extensions` with Developer mode on,
 open `http://localhost:5500`, and click the extension icon.
 
-The portrait at `demo/assets/face.jpg` is machine-generated and depicts nobody —
-see `demo/assets/README.md` before replacing it.
+The portrait at `demo/assets/face.jpg` is machine-generated and depicts nobody.
+See `demo/assets/README.md` before replacing it.
 
 ## How it works
 
@@ -50,24 +50,21 @@ offscreen doc   ──→  face detection      (UltraFace, 1.2MB, whole viewport
 echo server     ──→  renders exactly what arrived
 ```
 
-Two properties are worth pointing at:
-
 **Nothing is keyed to any site.** The DOM pass reads only standard semantics,
 the vision pass reads arbitrary pixels. The finale is judged on pages nobody has
 seen, so anything site-specific would score well in rehearsal and fail on the day.
 
 **The boundary is structural.** `buildSanitisedContext` is the only function that
 can produce a value the transport accepts, and the set proving it is
-module-private. Raw values have no path to the network — not by discipline, by
-construction. `tests/no-leak.test.js` holds it to that using the demo page's own
-secrets.
+module-private. Raw values have no path to the network by construction.
+`tests/no-leak.test.js` holds it to that using the demo page's own secrets.
 
 ## Deliberate limits
 
 Tier 1 reads no pixel text. A DOM-blind region containing a face, or enough text
-to look like a document, is masked whole. That over-masks — a logo with three
-words on it gets covered — and over-masking is the right way to be wrong here: a
-missed span costs twice in the rubric, an over-mask costs once. Per-token
+to look like a document, is masked whole. That over-masks: a logo with three
+words on it gets covered. Over-masking is the right way to be wrong here, because
+a missed span costs twice in the rubric and an over-mask costs once. Per-token
 precision needs OCR plus NER, which is Tier 3.
 
 ## Layout
