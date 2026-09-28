@@ -19,7 +19,7 @@ action loop — is in the spec.
 
 ```bash
 bash tools/fetch-deps.sh          # ONNX Runtime + face model (~48MB, not in git)
-npm test                          # 67 tests, no framework, no dependencies
+npm test                          # 106 tests, no framework, no dependencies
 npm run echo                      # the receiving end, on 127.0.0.1:8787
 npx --yes serve demo -l 5500      # the demo page over http
 ```
